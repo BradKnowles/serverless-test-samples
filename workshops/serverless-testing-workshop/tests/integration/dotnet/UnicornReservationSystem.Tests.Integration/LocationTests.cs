@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: MIT-0
  */
 
+using System.Collections.Generic;
+using System.Text.Json;
 using System.Threading.Tasks;
 using UnicornReservationSystem.Tests.Integration.Fixtures;
 using Xunit;
@@ -32,5 +34,18 @@ public class LocationTests : IClassFixture<LocationFixture>
         
         // Assert
         Assert.True(result.IsSuccessStatusCode);
+    }
+
+    [Fact]
+    public async Task Api_Returns_CorrectLocations()
+    {
+        // Act
+        var result = await _locationFixture.UnicornApi.GetAsync("locations/");
+        var content = await result.Content.ReadAsStringAsync();
+        var locations =
+            JsonSerializer.Deserialize<Dictionary<string, string[]>>(content);
+
+        // Assert
+        Assert.Contains("SOME_LOCATION", locations["locations"]);
     }
 }
