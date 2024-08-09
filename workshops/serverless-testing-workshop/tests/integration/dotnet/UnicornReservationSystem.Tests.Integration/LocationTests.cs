@@ -48,4 +48,18 @@ public class LocationTests : IClassFixture<LocationFixture>
         // Assert
         Assert.Contains("SOME_LOCATION", locations["locations"]);
     }
+    
+    [Fact]
+    public async Task Api_IncorrectLocations_Returns403()
+    {
+        // Act
+        var response = await _locationFixture.UnicornApi.GetAsync("incorrect-locations/");
+        var content = await response.Content.ReadAsStringAsync();
+        var result = JsonSerializer.Deserialize<Dictionary<string, string>>(content);
+
+        // Assert
+        Assert.False(response.IsSuccessStatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal("Missing Authentication Token", result["message"].ToString());
+    }
 }
