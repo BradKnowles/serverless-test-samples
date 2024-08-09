@@ -5,6 +5,7 @@
  */
 
 using System.Collections.Generic;
+using System.Net;
 using System.Text.Json;
 using System.Threading.Tasks;
 using UnicornReservationSystem.Tests.Integration.Fixtures;
@@ -25,32 +26,31 @@ public class LocationTests : IClassFixture<LocationFixture>
     }
     
     [Fact]
-    public async Task Api_Returns_200()
+    public async Task Api_ConnectivityCheck_Returns200()
     {
-        // Arrange
-        
         // Act
-        var result = await _locationFixture.UnicornApi.GetAsync("locations/");
+        var response = await _locationFixture.UnicornApi.GetAsync("locations/");
         
         // Assert
-        Assert.True(result.IsSuccessStatusCode);
+        Assert.True(response.IsSuccessStatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
-    public async Task Api_Returns_CorrectLocations()
+    public async Task Api_GetCorrectLocations_ReturnsLocations()
     {
         // Act
-        var result = await _locationFixture.UnicornApi.GetAsync("locations/");
-        var content = await result.Content.ReadAsStringAsync();
-        var locations =
-            JsonSerializer.Deserialize<Dictionary<string, string[]>>(content);
+        var response = await _locationFixture.UnicornApi.GetAsync("locations/");
+        var content = await response.Content.ReadAsStringAsync();
+        var result = JsonSerializer.Deserialize<Dictionary<string, string[]>>(content);
 
         // Assert
-        Assert.Contains("SOME_LOCATION", locations["locations"]);
+        Assert.True(response.IsSuccessStatusCode);
+        Assert.Contains("SOME_LOCATION", result["locations"]);
     }
     
     [Fact]
-    public async Task Api_IncorrectLocations_Returns403()
+    public async Task Api_IncorrectLocations_ReturnsError()
     {
         // Act
         var response = await _locationFixture.UnicornApi.GetAsync("incorrect-locations/");
