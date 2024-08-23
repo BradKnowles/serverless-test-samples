@@ -26,7 +26,6 @@ public class LocationFixture : IAsyncLifetime
 	private readonly AmazonDynamoDBClient _dynamoDbClient;
 	private readonly HttpClient _unicornApi;
 
-	// ReSharper disable once ConvertToPrimaryConstructor
 	public LocationFixture(EnvironmentFixture environmentFixture)
 	{
 		_environmentFixture = environmentFixture;
@@ -43,23 +42,41 @@ public class LocationFixture : IAsyncLifetime
 	public string UniqueTestLocation { get; } = $"TEST_LOC_{Guid.NewGuid()}";
 	public HttpClient UnicornApi => _unicornApi;
 
+	/// <summary>
+	/// Perform initialization steps
+	/// </summary>
+	/// <remarks>
+	/// This method is implemented as part of the <see cref="IAsyncLifetime"/> interface.
+	/// It is here that we use the DynamoDB module of the .NET SDK to directly upload a test location to the LOCATION#LIST
+	/// entry so we can use it in our tests.
+	/// </remarks>
 	public async Task InitializeAsync()
 	{
+		// Get the LOCATION#LIST item from DynamoDB
 		var table = Table.LoadTable(_dynamoDbClient, _environmentFixture.DynamoDbTable);
-		Document locationListResult = await table.GetItemAsync("LOCATION#LIST");
+		Document locationList = await table.GetItemAsync("LOCATION#LIST");
 
+		// The LOCATION#LIST is a List data type
+		// https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.NamingRulesDataTypes.html#HowItWorks.DataTypes.Document.List
+		// Create a new DynamoDBList object to add the test location
 		var updatedLocationList = new DynamoDBList();
+
+		// Convert the test location into a DynamoDB entry from a string
 		var testLocationEntry = DynamoDBEntryConversion.V2.ConvertToEntry(UniqueTestLocation);
-		if (locationListResult is null)
+		if (locationList is null)
 		{
 			updatedLocationList.Add(testLocationEntry);
 		}
 		else
 		{
-			updatedLocationList = locationListResult["LOCATIONS"].AsDynamoDBList();
+			// If the location list already has entries, add them to the updatedLocationList
+			// before we add our test location. Otherwise, the LOCATIONS attribute would be wholly
+			// replaced with just the new test location, erasing the existing locations.
+			updatedLocationList = locationList["LOCATIONS"].AsDynamoDBList();
 			updatedLocationList.Add(testLocationEntry);
 		}
 
+		// Store the new list of locations
 		await table.PutItemAsync(new Document
 		{
 			["PK"] = "LOCATION#LIST",
@@ -67,18 +84,28 @@ public class LocationFixture : IAsyncLifetime
 		});
 	}
 
+	/// <summary>
+	/// Runs at the completion of all tests in a given class
+	/// </summary>
+	/// <remarks>
+	/// This method is implemented as part of the <see cref="IAsyncLifetime"/> interface.
+	/// It is here that we use the DynamoDB module of the .NET SDK to remove the test location from the LOCATION#LIST
+	/// entry so we can cleanup after the tests finish.
+	/// </remarks>
 	public async Task DisposeAsync()
 	{
-		// Remove the test location from the locations list
+		// Convert the test location into a DynamoDB entry from a string
 		DynamoDBEntry testLocationEntry = DynamoDBEntryConversion.V2.ConvertToEntry(UniqueTestLocation);
 		var table = Table.LoadTable(_dynamoDbClient, _environmentFixture.DynamoDbTable);
 
+		// Setup variables to keep track of polling
 		DynamoDBList locations = null;
 		var pollMaxTime = TimeSpan.FromSeconds(30);
 		var pollCompleteSeconds = TimeSpan.Zero;
 
-		// The LOCATIONS#LIST value was being subjected to eventual consistently delays
-		// This loop repeatedly retrieves the LOCATIONS#LIST key until our _testLocation is present
+		// When reading from DynamoDB values are sometimes eventually consistent
+		// https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadConsistency.html
+		// This loop repeatedly retrieves the LOCATIONS#LIST key until our UniqueTestLocation is present
 		// or the timeout has elapsed
 		while (pollCompleteSeconds < pollMaxTime)
 		{
@@ -96,7 +123,10 @@ public class LocationFixture : IAsyncLifetime
 			}
 		}
 
+		// Remove the UniqueTestLocation from the list retrieved from DynamoDB
 		locations?.Entries.Remove(testLocationEntry);
+
+		// Store the new list of locations
 		await table.PutItemAsync(new Document
 		{
 			["PK"] = "LOCATION#LIST",
