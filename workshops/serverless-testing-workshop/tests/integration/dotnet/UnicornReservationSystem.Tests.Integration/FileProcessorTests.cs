@@ -11,6 +11,7 @@ using Amazon.S3.Model;
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -124,18 +125,39 @@ public class FileProcessorTests : IAsyncLifetime
 		Document testUnicorn = await table.GetItemAsync(_testUnicorn);
 		if (testUnicorn is not null)
 		{
-			_ = await table.DeleteItemAsync(testUnicorn);
+			await table.DeleteItemAsync(testUnicorn);
 		}
 
 		// And the test location from the locations list
-		Document locationListResult = await table.GetItemAsync("LOCATION#LIST");
-		DynamoDBList updatedLocationList = locationListResult["LOCATIONS"].AsDynamoDBList();
 		DynamoDBEntry testLocationEntry = DynamoDBEntryConversion.V2.ConvertToEntry(_testLocation);
-		updatedLocationList?.Entries.Remove(testLocationEntry);
+		DynamoDBList locations = null;
+		var pollMaxTime = TimeSpan.FromSeconds(30);
+		var pollCompleteSeconds = TimeSpan.Zero;
+
+		// The LOCATIONS#LIST value was being subjected to eventual consistently delays
+		// This loop repeatedly retrieves the LOCATIONS#LIST key until our _testLocation is present
+		// or the timeout has elapsed
+		while (pollCompleteSeconds < pollMaxTime)
+		{
+			Document locationsList = await table.GetItemAsync("LOCATION#LIST");
+			locations = locationsList["LOCATIONS"].AsDynamoDBList();
+			var indexUpdated = locations?.AsArrayOfString().Contains(_testLocation) ?? false;
+			if (indexUpdated)
+			{
+				break;
+			}
+			else
+			{
+				Thread.Sleep(TimeSpan.FromSeconds(1));
+				pollCompleteSeconds = pollCompleteSeconds.Add(TimeSpan.FromSeconds(1));
+			}
+		}
+
+		locations?.Entries.Remove(testLocationEntry);
 		await table.PutItemAsync(new Document
 		{
 			["PK"] = "LOCATION#LIST",
-			["LOCATIONS"] = updatedLocationList
+			["LOCATIONS"] = locations
 		});
 
 		_dynamoDbClient?.Dispose();
