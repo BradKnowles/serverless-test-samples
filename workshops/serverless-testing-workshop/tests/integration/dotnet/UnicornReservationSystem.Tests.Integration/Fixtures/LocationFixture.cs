@@ -11,7 +11,9 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DocumentModel;
 
 using System;
+using System.Linq;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 
 using Xunit;
@@ -67,18 +69,40 @@ public class LocationFixture : IAsyncLifetime
 
 	public async Task DisposeAsync()
 	{
+		// Remove the test location from the locations list
+		DynamoDBEntry testLocationEntry = DynamoDBEntryConversion.V2.ConvertToEntry(UniqueTestLocation);
 		var table = Table.LoadTable(_dynamoDbClient, _environmentFixture.DynamoDbTable);
-		Document locationListResult = await table.GetItemAsync("LOCATION#LIST");
-		var updatedLocationList = locationListResult["LOCATIONS"].AsDynamoDBList();
 
-		var testLocationEntry = DynamoDBEntryConversion.V2.ConvertToEntry(UniqueTestLocation);
+		DynamoDBList locations = null;
+		var pollMaxTime = TimeSpan.FromSeconds(30);
+		var pollCompleteSeconds = TimeSpan.Zero;
 
-		updatedLocationList?.Entries.Remove(testLocationEntry);
+		// The LOCATIONS#LIST value was being subjected to eventual consistently delays
+		// This loop repeatedly retrieves the LOCATIONS#LIST key until our _testLocation is present
+		// or the timeout has elapsed
+		while (pollCompleteSeconds < pollMaxTime)
+		{
+			Document locationsList = await table.GetItemAsync("LOCATION#LIST");
+			locations = locationsList["LOCATIONS"].AsDynamoDBList();
+			var indexUpdated = locations?.AsArrayOfString().Contains(UniqueTestLocation) ?? false;
+			if (indexUpdated)
+			{
+				break;
+			}
+			else
+			{
+				Thread.Sleep(TimeSpan.FromSeconds(1));
+				pollCompleteSeconds = pollCompleteSeconds.Add(TimeSpan.FromSeconds(1));
+			}
+		}
 
+		locations?.Entries.Remove(testLocationEntry);
 		await table.PutItemAsync(new Document
 		{
 			["PK"] = "LOCATION#LIST",
-			["LOCATIONS"] = updatedLocationList
+			["LOCATIONS"] = locations
 		});
+
+		_dynamoDbClient?.Dispose();
 	}
 }
