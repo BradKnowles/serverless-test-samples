@@ -42,7 +42,6 @@ public class FileProcessorTests : IAsyncLifetime
 		_dynamoDbClient = new AmazonDynamoDBClient();
 		_s3Client = new AmazonS3Client();
 
-
 		// Create a random postfix for the id's to prevent data collisions between tests
 		// Using unique id's per unit test will isolate test data
 		// Use this id in all test data values or artifacts
