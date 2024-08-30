@@ -24,23 +24,25 @@ public class LocationFixture : IAsyncLifetime
 {
 	private readonly EnvironmentFixture _environmentFixture;
 	private readonly AmazonDynamoDBClient _dynamoDbClient;
-	private readonly HttpClient _unicornApi;
 
 	public LocationFixture(EnvironmentFixture environmentFixture)
 	{
+		// ** Place UniqueTestLocation Code Here **
+		UniqueTestLocation = $"TEST_LOC_{Guid.NewGuid()}";
+
 		_environmentFixture = environmentFixture;
 		_dynamoDbClient = new AmazonDynamoDBClient();
 
 		// HttpClient lifecycle management best practices:
 		// https://learn.microsoft.com/dotnet/fundamentals/networking/http/httpclient-guidelines#recommended-use
-		_unicornApi = new HttpClient
+		UnicornApi = new HttpClient
 		{
 			BaseAddress = new Uri(_environmentFixture.ApiEndpoint)
 		};
 	}
 
-	public string UniqueTestLocation { get; } = $"TEST_LOC_{Guid.NewGuid()}";
-	public HttpClient UnicornApi => _unicornApi;
+	public string UniqueTestLocation { get; }
+	public HttpClient UnicornApi { get; }
 
 	/// <summary>
 	/// Perform initialization steps
@@ -90,7 +92,7 @@ public class LocationFixture : IAsyncLifetime
 	/// <remarks>
 	/// This method is implemented as part of the <see cref="IAsyncLifetime"/> interface.
 	/// It is here that we use the DynamoDB module of the .NET SDK to remove the test location from the LOCATION#LIST
-	/// entry so we can cleanup after the tests finish.
+	/// entry so we can clean up after the tests finish.
 	/// </remarks>
 	public async Task DisposeAsync()
 	{
