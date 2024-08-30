@@ -4,6 +4,9 @@
  * SPDX-License-Identifier: MIT-0
  */
 
+// More information about xUnit Collection Fixtures
+// https://xunit.net/docs/shared-context#collection-fixture
+
 using Amazon.CloudFormation;
 using Amazon.CloudFormation.Model;
 
@@ -12,7 +15,6 @@ using System.Linq;
 
 namespace UnicornReservationSystem.Tests.Integration.Fixtures;
 
-// https://xunit.net/docs/shared-context#collection-fixture
 public sealed class EnvironmentFixture
 {
 	public EnvironmentFixture()
