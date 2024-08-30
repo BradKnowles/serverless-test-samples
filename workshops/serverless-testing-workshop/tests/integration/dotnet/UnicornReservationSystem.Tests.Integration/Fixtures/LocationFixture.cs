@@ -28,7 +28,6 @@ public class LocationFixture : IAsyncLifetime
 	public LocationFixture(EnvironmentFixture environmentFixture)
 	{
 		// ** Place UniqueTestLocation Code Here **
-		UniqueTestLocation = $"TEST_LOC_{Guid.NewGuid()}";
 
 		_environmentFixture = environmentFixture;
 		_dynamoDbClient = new AmazonDynamoDBClient();
